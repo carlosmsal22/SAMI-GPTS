@@ -13,7 +13,6 @@ uploaded_file = st.file_uploader("Upload file (CSV, XLSX, or TXT)", type=["csv",
 with open("prompts/SAMI_VoC_AI_Finalized.json", "r") as f:
     prompt = json.load(f)
 
-# Safe session state management
 if "prompt_input" not in st.session_state:
     st.session_state.prompt_input = ""
 
@@ -23,15 +22,13 @@ if "suggested_prompt" in st.session_state:
 
 st.text_area("Or enter your prompt here:", key="prompt_input", height=200)
 
-# Clickable suggestions
 if prompt.get("prompt_suggestions"):
     st.markdown("### 💡 Prompt Suggestions")
     for i, suggestion in enumerate(prompt["prompt_suggestions"]):
         if st.button(f"🖋️ {suggestion}", key=f"suggestion_{i}"):
             st.session_state.suggested_prompt = suggestion
-            st.experimental_rerun()
+            st.rerun()
 
-# Run button
 if st.button("Run Analysis"):
     if st.session_state.prompt_input:
         result = run_gpt(prompt, st.session_state.prompt_input)
