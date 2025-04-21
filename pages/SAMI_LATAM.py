@@ -1,9 +1,21 @@
 
 import streamlit as st
+from utils.gpt_helpers import run_gpt
+import json
 
-st.title("📊 SAMI.AI INSIGHTS LATAM")
-st.write("Multilingual market insights assistant for Latin America.")
+st.set_page_config(layout="wide")
+st.title("🌎 SAMI.AI INSIGHTS LATAM")
+st.write("Upload a dataset or enter a prompt to get started.")
 
-uploaded_file = st.file_uploader("Upload survey data or open-ended responses", type=["csv", "xlsx", "txt"])
-if uploaded_file:
-    st.success("File uploaded! (Processing functionality coming soon.)")
+uploaded_file = st.file_uploader("Upload file (CSV, XLSX, or TXT)", type=["csv", "xlsx", "txt"])
+user_input = st.text_area("Or enter your prompt here:", height=200)
+
+if st.button("Run Analysis"):
+    if user_input:
+        with open("prompts/SAMI_AI_INSIGHTS_LATAM_Enhanced.json", "r") as f:
+            prompt = json.load(f)
+        result = run_gpt(prompt, user_input)
+        st.markdown("### 🔍 GPT Response")
+        st.write(result)
+    else:
+        st.warning("Please enter a prompt to begin.")
