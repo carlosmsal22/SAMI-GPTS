@@ -1,14 +1,36 @@
 
 import streamlit as st
+from utils.gpt_helpers import run_gpt
+import json
 
 st.set_page_config(layout="wide")
-
 st.title("🎁 SAMI Incentives AI")
-st.write("Upload a dataset or paste a prompt to begin using 🎁 SAMI Incentives AI.")
+st.write("Upload a dataset or enter a prompt to get started.")
 
 uploaded_file = st.file_uploader("Upload file (CSV, XLSX, or TXT)", type=["csv", "xlsx", "txt"])
-if uploaded_file:
-    st.success("File uploaded successfully!")
-    st.info("Processing and GPT integration coming next...")
 
-st.text_area("Or enter your prompt here:", height=200)
+# Load prompt config
+with open("prompts/SAMI_Incentives_AI_Finalized.json", "r") as f:
+    prompt = json.load(f)
+
+# Text input with prefilled capability
+if "prompt_input" not in st.session_state:
+    st.session_state.prompt_input = ""
+
+st.text_area("Or enter your prompt here:", key="prompt_input", height=200)
+
+# Clickable suggestions
+if prompt.get("prompt_suggestions"):
+    st.markdown("### 💡 Prompt Suggestions")
+    for i, suggestion in enumerate(prompt["prompt_suggestions"]):
+        if st.button(f"🖋️ {{suggestion}}", key=f"suggestion_{{i}}"):
+            st.session_state.prompt_input = suggestion
+
+# Run button
+if st.button("Run Analysis"):
+    if st.session_state.prompt_input:
+        result = run_gpt(prompt, st.session_state.prompt_input)
+        st.markdown("### 🔍 GPT Response")
+        st.write(result)
+    else:
+        st.warning("Please enter a prompt to begin.")
