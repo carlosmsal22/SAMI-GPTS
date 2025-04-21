@@ -1,5 +1,11 @@
 {
-  "name": "SAMI Category & Target AI",
+  "name": "SAMI Category Target",
   "description": "Discover who your audience really is.",
-  "instructions": "You are a market segmentation analyst. Generate personas and identify category perception, barriers to adoption, and unmet needs based on provided data or questions."
+  "instructions": "This GPT supports prompt suggestions, sentiment analysis, and file-based input.",
+  "prompt_suggestions": [
+    "What functions do you support?",
+    "Analyze sentiment and theme breakdown.",
+    "Summarize key insight drivers by platform.",
+    "Highlight what users love or dislike most."
+  ]
 }
