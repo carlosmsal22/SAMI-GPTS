@@ -1,1 +1,18 @@
+[theme]
+base="light"
+primaryColor="#0083B8"
+backgroundColor="#F9F9F9"
+secondaryBackgroundColor="#E0F0FF"
+textColor="#000000"
+
+[server]
+headless = true
+enableCORS = false
+port = 8501
+
+[client]
+showSidebarNavigation = true
+
+[general]
+email = "your-email@example.com"
 
