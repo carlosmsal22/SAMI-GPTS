@@ -16,8 +16,7 @@ def export_pdf(summary_text, filename="summary.pdf"):
     for line in summary_text.split("\n"):
         pdf.multi_cell(0, 10, line)
 
-    buffer = BytesIO()
-    pdf.output(buffer)
-    buffer.seek(0)
+    pdf_output = pdf.output(dest="S").encode("latin-1")
+    buffer = BytesIO(pdf_output)
 
     st.download_button("Download PDF", buffer, file_name=filename, mime="application/pdf")
