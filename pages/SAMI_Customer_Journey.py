@@ -27,7 +27,7 @@ if prompt.get("prompt_suggestions"):
     for i, suggestion in enumerate(prompt["prompt_suggestions"]):
         if st.button(f"🖋️ {suggestion}", key=f"suggestion_{i}"):
             st.session_state.suggested_prompt = suggestion
-            st.experimental_rerun()
+            st.rerun()
 
 if st.button("Run Analysis"):
     if st.session_state.prompt_input:
