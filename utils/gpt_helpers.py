@@ -1,19 +1,18 @@
 
+import os
 import openai
-import json
 
-def load_prompt(path: str) -> dict:
-    with open(path, "r") as f:
-        return json.load(f)
+# Initialize OpenAI client with v1-style call
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def run_gpt(prompt_config, user_input, model="gpt-4"):
-    messages = [
-        {"role": "system", "content": prompt_config["instructions"]},
-        {"role": "user", "content": user_input}
-    ]
-    response = openai.ChatCompletion.create(
-        model=model,
+def run_gpt(prompt_config, user_input):
+    messages = [{"role": "system", "content": prompt_config.get("instructions", "")}]
+    messages.append({"role": "user", "content": user_input})
+
+    response = client.chat.completions.create(
+        model="gpt-4",
         messages=messages,
         temperature=0.7
     )
-    return response.choices[0].message["content"]
+
+    return response.choices[0].message.content
