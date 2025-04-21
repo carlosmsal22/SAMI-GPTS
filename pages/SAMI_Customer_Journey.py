@@ -70,7 +70,15 @@ if st.button("Run Analysis"):
                 y_col = num_cols[0]
                 plot_bar_chart(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}")
             else:
-                st.warning("No numeric columns available for visualization.")
+                # Try fallback: use first categorical column's value counts
+                cat_cols = df.select_dtypes(include='object').columns
+                if len(cat_cols) > 0:
+                    fallback_col = cat_cols[0]
+                    fallback_counts = df[fallback_col].value_counts().reset_index()
+                    fallback_counts.columns = [fallback_col, "Count"]
+                    plot_bar_chart(fallback_counts, x=fallback_col, y="Count", title=f"Distribution of {fallback_col}")
+                else:
+                    st.warning("No numeric or categorical columns available for visualization.")
 
             export_csv(summary_df, "summary.csv")
             export_pdf(result, "summary.pdf")
