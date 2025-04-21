@@ -64,12 +64,15 @@ if st.button("Run Analysis"):
             summary_df = summarize_dataframe(df)
             st.dataframe(summary_df)
 
-            if len(df.columns) >= 2:
-                x_col, y_col = df.columns[0], df.select_dtypes(include='number').columns[0]
+            num_cols = df.select_dtypes(include='number').columns
+            if len(num_cols) > 0:
+                x_col = df.columns[0]
+                y_col = num_cols[0]
                 plot_bar_chart(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}")
+            else:
+                st.warning("No numeric columns available for visualization.")
 
             export_csv(summary_df, "summary.csv")
             export_pdf(result, "summary.pdf")
     else:
         st.warning("Please enter a prompt.")
-
