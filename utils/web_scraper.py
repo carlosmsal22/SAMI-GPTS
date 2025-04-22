@@ -4,82 +4,114 @@ from bs4 import BeautifulSoup
 import time
 import random
 from datetime import datetime
+import re
 
 def scrape_reddit(keyword, max_posts=10):
-    """Scrape Reddit posts using alternative methods"""
-    print(f"Attempting to scrape Reddit for: {keyword}")
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    
-    try:
-        # Method 1: Try official Reddit API
-        url = f"https://www.reddit.com/search.json?q={keyword}&limit={max_posts}"
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()['data']['children']
-        if data:
-            print(f"Found {len(data)} posts via Reddit API")
-            return pd.DataFrame([{
-                'comment': post['data']['title'],
-                'source': 'Reddit',
-                'date': datetime.fromtimestamp(post['data']['created_utc'])
-            } for post in data])
-        
-        # Fallback to HTML scraping if API fails
-        print("Trying HTML fallback...")
-        html_url = f"https://www.reddit.com/search/?q={keyword}"
-        response = requests.get(html_url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        posts = []
-        for post in soup.select('h3')[:max_posts]:  # Common post title selector
-            posts.append({
-                'comment': post.get_text(strip=True),
-                'source': 'Reddit',
-                'date': datetime.now()
-            })
-        
-        print(f"Found {len(posts)} posts via HTML")
-        return pd.DataFrame(posts)
-
-    except Exception as e:
-        print(f"Reddit scraping failed: {str(e)}")
-        return pd.DataFrame()
-
-def scrape_trustpilot(keyword, max_reviews=10):
-    """Scrape Trustpilot reviews with robust selectors"""
-    print(f"Attempting to scrape Trustpilot for: {keyword}")
+    """Modern Reddit scraper that actually works"""
+    print(f"Scraping Reddit for: {keyword}")
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Accept-Language': 'en-US,en;q=0.9'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
     
     try:
-        url = f"https://www.trustpilot.com/search?query={keyword}"
+        # New Reddit JSON endpoint
+        url = f"https://www.reddit.com/search/.json?q={keyword}&limit={max_posts}"
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         
-        soup = BeautifulSoup(response.text, 'html.parser')
-        reviews = []
+        data = response.json()['data']['children']
+        posts = []
         
-        # Updated selectors
-        for card in soup.select('[data-service-review]')[:max_reviews]:
+        for post in data:
             try:
-                text = card.select_one('[data-service-review-text]').get_text(strip=True)
-                date = card.select_one('time').get('datetime', '')
+                posts.append({
+                    'comment': post['data']['title'],
+                    'source': 'Reddit',
+                    'date': datetime.fromtimestamp(post['data']['created_utc']),
+                    'url': f"https://reddit.com{post['data']['permalink']}"
+                })
+            except KeyError:
+                continue
+        
+        print(f"Found {len(posts)} Reddit posts")
+        return pd.DataFrame(posts)
+        
+    except Exception as e:
+        print(f"Reddit error: {e}")
+        # Fallback to RSS
+        try:
+            rss_url = f"https://www.reddit.com/search.rss?q={keyword}&limit={max_posts}"
+            response = requests.get(rss_url, headers=headers, timeout=15)
+            soup = BeautifulSoup(response.text, 'xml')
+            
+            posts = []
+            for item in soup.find_all('item')[:max_posts]:
+                posts.append({
+                    'comment': item.title.text,
+                    'source': 'Reddit',
+                    'date': datetime.strptime(item.pubDate.text, '%a, %d %b %Y %H:%M:%S %Z'),
+                    'url': item.link.text
+                })
+            
+            print(f"Found {len(posts)} posts via RSS")
+            return pd.DataFrame(posts)
+            
+        except Exception as e:
+            print(f"RSS fallback failed: {e}")
+            return pd.DataFrame()
+
+def scrape_trustpilot(keyword, max_reviews=10):
+    """Working Trustpilot scraper with modern selectors"""
+    print(f"Scraping Trustpilot for: {keyword}")
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'en-US,en;q=0.5'
+    }
+    
+    try:
+        # First get the actual business page
+        search_url = f"https://www.trustpilot.com/search?query={keyword}"
+        response = requests.get(search_url, headers=headers, timeout=20)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        business_link = soup.find('a', {'class': 'business-unit-card'})
+        
+        if not business_link:
+            print("No business page found")
+            return pd.DataFrame()
+            
+        business_url = "https://www.trustpilot.com" + business_link['href']
+        time.sleep(2)  # Be polite
+        
+        # Now scrape the actual reviews
+        review_url = f"{business_url}/reviews"
+        response = requests.get(review_url, headers=headers, timeout=20)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        reviews = []
+        for review in soup.select('article.review')[:max_reviews]:
+            try:
+                text = review.select_one('.review-content__text').get_text(strip=True)
+                date = review.select_one('time')['datetime']
+                rating = len(review.select('.star-rating img[alt*="star"]'))
+                
                 reviews.append({
                     'comment': text,
                     'source': 'Trustpilot',
-                    'date': pd.to_datetime(date) if date else datetime.now()
+                    'date': pd.to_datetime(date),
+                    'rating': rating,
+                    'url': review_url
                 })
-                time.sleep(random.uniform(0.5, 2))  # Respectful delay
+                time.sleep(random.uniform(1, 3))  # Random delay
             except Exception as e:
-                print(f"Skipping review due to: {str(e)}")
+                print(f"Skipping review: {e}")
                 continue
         
         print(f"Found {len(reviews)} Trustpilot reviews")
         return pd.DataFrame(reviews)
         
     except Exception as e:
-        print(f"Trustpilot scraping failed: {str(e)}")
+        print(f"Trustpilot error: {e}")
         return pd.DataFrame()
