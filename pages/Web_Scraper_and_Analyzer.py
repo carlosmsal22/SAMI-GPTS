@@ -79,18 +79,19 @@ def main():
                 return
                 
             # Standardize data
-            dfs = []
-            for df, source in [(reddit_df, "Reddit"), (trust_df, "Trustpilot")]:
-                if not df.empty:
-                    # Find comment column (handles different names)
-                    comment_col = next(
-                        (col for col in df.columns 
-                         if any(word in col.lower() for word in ['comment', 'text', 'title', 'review']),
-                        None  # Default value if no match found
-                    )
-                    if comment_col:
-                        df = df.rename(columns={comment_col: 'comment'})
-                        dfs.append(df)
+            # Standardize data
+dfs = []
+for df, source in [(reddit_df, "Reddit"), (trust_df, "Trustpilot")]:
+    if not df.empty:
+        # Find comment column (handles different names)
+        comment_col = next(
+            (col for col in df.columns 
+             if any(word in col.lower() for word in ['comment', 'text', 'title', 'review'])),
+            None
+        )
+        if comment_col:
+            df = df.rename(columns={comment_col: 'comment'})
+            dfs.append(df)
             
             if dfs:
                 full_df = pd.concat(dfs, ignore_index=True)
