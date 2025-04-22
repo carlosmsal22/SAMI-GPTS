@@ -6,69 +6,53 @@ import random
 from datetime import datetime
 
 def scrape_reddit(keyword, max_posts=10):
-    """Reliable Reddit scraper using alternative methods"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
+    """Working Reddit scraper using Pushshift API"""
+    print(f"Scraping Reddit for: {keyword}")
+    headers = {'User-Agent': 'Mozilla/5.0'}
     
     try:
-        # Method 1: Use Reddit's JSON API
-        url = f"https://www.reddit.com/search.json?q={keyword}&limit={max_posts}"
+        # Using Pushshift API
+        url = f"https://api.pushshift.io/reddit/search/submission/?q={keyword}&size={max_posts}"
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         
-        data = response.json()['data']['children']
-        if data:
-            return pd.DataFrame([{
-                'comment': post['data']['title'],
-                'source': 'Reddit',
-                'date': datetime.fromtimestamp(post['data']['created_utc']),
-                'url': f"https://reddit.com{post['data']['permalink']}"
-            } for post in data])
-        
-        # Method 2: Fallback to RSS
-        rss_url = f"https://www.reddit.com/search.rss?q={keyword}&limit={max_posts}"
-        response = requests.get(rss_url, headers=headers, timeout=15)
-        soup = BeautifulSoup(response.text, 'xml')
-        
+        data = response.json()['data']
         posts = [{
-            'comment': item.title.text,
+            'comment': post['title'],
             'source': 'Reddit',
-            'date': datetime.strptime(item.pubDate.text, '%a, %d %b %Y %H:%M:%S %Z'),
-            'url': item.link.text
-        } for item in soup.find_all('item')[:max_posts]]
+            'date': datetime.fromtimestamp(post['created_utc']),
+            'url': f"https://reddit.com{post['permalink']}"
+        } for post in data]
         
+        print(f"Found {len(posts)} Reddit posts")
         return pd.DataFrame(posts)
         
     except Exception as e:
-        print(f"Reddit scraping failed: {e}")
+        print(f"Reddit scraping error: {e}")
         return pd.DataFrame()
 
 def scrape_trustpilot(keyword, max_reviews=10):
-    """Reliable Trustpilot scraper with modern selectors"""
+    """Working Trustpilot scraper with direct review page"""
+    print(f"Scraping Trustpilot for: {keyword}")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
         'Accept-Language': 'en-US,en;q=0.9'
     }
     
     try:
-        # Search for business page
-        search_url = f"https://www.trustpilot.com/search?query={keyword}"
-        response = requests.get(search_url, headers=headers, timeout=20)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # Directly access the review page for known brands
+        brand_mapping = {
+            'apple': 'apple.com',
+            'nike': 'nike.com',
+            'starbucks': 'starbucks.com'
+        }
         
-        # Find business unit card
-        business_card = soup.find('div', {'class': 'business-unit-card'})
-        if not business_card:
+        domain = brand_mapping.get(keyword.lower())
+        if not domain:
             return pd.DataFrame()
             
-        # Get reviews URL
-        reviews_path = business_card.find('a')['href']
-        reviews_url = f"https://www.trustpilot.com{reviews_path}"
-        time.sleep(2)  # Be polite
-        
-        # Scrape reviews
-        response = requests.get(reviews_url, headers=headers, timeout=20)
+        url = f"https://www.trustpilot.com/review/{domain}"
+        response = requests.get(url, headers=headers, timeout=20)
         soup = BeautifulSoup(response.text, 'html.parser')
         
         reviews = []
@@ -85,8 +69,9 @@ def scrape_trustpilot(keyword, max_reviews=10):
                 print(f"Skipping review: {e}")
                 continue
                 
+        print(f"Found {len(reviews)} Trustpilot reviews")
         return pd.DataFrame(reviews)
         
     except Exception as e:
-        print(f"Trustpilot scraping failed: {e}")
+        print(f"Trustpilot scraping error: {e}")
         return pd.DataFrame()
