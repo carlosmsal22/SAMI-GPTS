@@ -1,4 +1,3 @@
-
 # pages/Web_Scraper_and_Analyzer.py
 import streamlit as st
 import pandas as pd
@@ -19,9 +18,12 @@ if st.button("Scrape the Web"):
     st.dataframe(full_df)
 
 if "scraped_data" in st.session_state and st.button("Analyze with GPT"):
-    prompt = f"Based on the following user comments about '{keyword}', summarize sentiment and brand reputation:
-
-"
+    # Fixed prompt string - now properly formatted
+    prompt = (
+        f"Based on the following user comments about '{keyword}', "
+        "summarize sentiment and brand reputation:\n\n"
+    )
+    
     for comment in st.session_state.scraped_data['comment'].head(10):
         prompt += f"- {comment}\n"
 
