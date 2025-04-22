@@ -55,7 +55,7 @@ if uploaded_file:
 if st.button("Run Analysis"):
     if st.session_state.prompt_input:
         user_prompt = st.session_state.prompt_input
-        result = run_gpt(prompt, user_prompt)
+        result = run_gpt_prompt(user_prompt)
         st.markdown("### 🔍 GPT Response")
         st.write(result)
 
