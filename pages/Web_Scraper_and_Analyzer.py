@@ -4,7 +4,6 @@ from utils.web_scraper import scrape_reddit, scrape_trustpilot
 from utils.gpt_helpers import run_gpt_prompt
 import sys
 from pathlib import Path
-import time
 from datetime import datetime
 
 # Configure paths
@@ -16,9 +15,9 @@ def main():
     
     # Input Section
     keyword = st.text_input("Enter a brand name (e.g. Nike, Starbucks)", 
+                          value="nike",  # Default value for testing
                           help="Try popular brands first for better results")
-    num = st.slider("Number of posts/reviews", 5, 50, 10, 
-                   help="More samples may take longer but provide better analysis")
+    num = st.slider("Number of posts/reviews", 5, 50, 10)
     
     # Scraping Section
     if st.button("🔎 Scrape Brand Data", type="primary"):
@@ -27,41 +26,34 @@ def main():
             st.stop()
             
         with st.spinner(f"Gathering data about {keyword}..."):
-            reddit_df = pd.DataFrame()
-            trust_df = pd.DataFrame()
-            
-            # Try scraping both sources
             try:
                 reddit_df = scrape_reddit(keyword, max_posts=num)
                 trust_df = scrape_trustpilot(keyword, max_reviews=num)
+                
+                # Debug preview
+                with st.expander("Raw Data Preview"):
+                    st.write("Reddit Data:", reddit_df)
+                    st.write("Trustpilot Data:", trust_df)
+                
+                # Process data
+                dfs = []
+                for df in [reddit_df, trust_df]:
+                    if not df.empty:
+                        # Standardize column names
+                        if 'title' in df.columns:  # Reddit uses 'title'
+                            df = df.rename(columns={'title': 'comment'})
+                        dfs.append(df)
+                
+                if dfs:
+                    full_df = pd.concat(dfs, ignore_index=True)
+                    st.session_state.scraped_data = full_df
+                    st.success(f"✅ Found {len(full_df)} comments!")
+                    st.dataframe(full_df[['comment', 'source']].head())
+                else:
+                    st.error("No data found. Try a more popular brand or check if the brand exists on these platforms.")
+                    
             except Exception as e:
                 st.error(f"Scraping failed: {str(e)}")
-                st.stop()
-
-            # Process results
-            dfs = []
-            for df, source in [(reddit_df, "Reddit"), (trust_df, "Trustpilot")]:
-                if not df.empty:
-                    # Find comment column using safe method
-                    comment_col = None
-                    for col in df.columns:
-                        lower_col = col.lower()
-                        if any(word in lower_col for word in ['comment', 'text', 'title', 'review']):
-                            comment_col = col
-                            break
-                    
-                    if comment_col:
-                        df = df.rename(columns={comment_col: 'comment'})
-                        dfs.append(df)
-
-            if dfs:
-                full_df = pd.concat(dfs, ignore_index=True)
-                st.session_state.scraped_data = full_df
-                st.success(f"✅ Found {len(full_df)} comments!")
-                st.dataframe(full_df.head())
-            else:
-                st.error("No valid data found from any source")
-                st.session_state.scraped_data = None
 
     # Analysis Section
     if "scraped_data" in st.session_state:
@@ -71,37 +63,31 @@ def main():
         if st.button("🤖 Analyze with AI", type="primary"):
             df = st.session_state.scraped_data
             
-            if df is None or df.empty:
+            if df.empty:
                 st.warning("No data to analyze")
-            elif 'comment' not in df.columns:
-                st.error("Data format error: No 'comment' column found")
             else:
+                # Prepare comments
                 comments = df['comment'].dropna().str.strip()
-                valid_comments = comments[comments != ""]
+                comments = comments[comments != ""].head(10)
                 
-                if len(valid_comments) == 0:
+                if len(comments) == 0:
                     st.warning("No valid comments for analysis")
                 else:
                     # Build prompt
                     prompt = f"""Analyze brand sentiment for {keyword} based on these user comments:
 
 1. Overall Sentiment (Positive/Neutral/Negative)
-2. Top 3 Positive Aspects Mentioned
-3. Top 3 Complaints or Issues
-4. 50-word Reputation Summary
-5. Suggested Improvements
+2. Key Positive Aspects
+3. Main Complaints
+4. Reputation Summary (50 words)
+5. Improvement Suggestions
 
 Comments:
-""" + "\n".join(f"- {c[:300]}" for c in valid_comments.head(10))
+""" + "\n".join(f"- {c[:200]}..." for c in comments)
 
                     with st.spinner("Analyzing with AI..."):
                         try:
-                            response = run_gpt_prompt(
-                                prompt,
-                                model="gpt-4",
-                                temperature=0.7,
-                                max_tokens=500
-                            )
+                            response = run_gpt_prompt(prompt, model="gpt-4")
                             st.success("Analysis Complete!")
                             st.markdown("## 📊 Brand Reputation Report")
                             st.markdown(response)
