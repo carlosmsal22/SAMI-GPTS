@@ -4,6 +4,7 @@ from utils.web_scraper import scrape_reddit, scrape_trustpilot
 from utils.gpt_helpers import run_gpt_prompt
 import sys
 from pathlib import Path
+import time
 
 # Configure paths
 sys.path.append(str(Path(__file__).parent))
@@ -85,7 +86,7 @@ def main():
                     comment_col = next(
                         (col for col in df.columns 
                          if any(word in col.lower() for word in ['comment', 'text', 'title', 'review']),
-                        None
+                        None  # Default value if no match found
                     )
                     if comment_col:
                         df = df.rename(columns={comment_col: 'comment'})
