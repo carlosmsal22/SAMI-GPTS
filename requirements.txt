@@ -6,3 +6,5 @@ matplotlib
 openpyxl
 plotly
 seaborn
+beautifulsoup4
+requests
