@@ -1,73 +1,85 @@
-import streamlit as st
 import pandas as pd
-from utils.web_scraper import scrape_reddit, scrape_trustpilot
-from utils.gpt_helpers import run_gpt_prompt
+import requests
+from bs4 import BeautifulSoup
+import time
+import random
+from datetime import datetime
 
-def main():
-    st.title("🧠 Scrape + Analyze Brand Reputation")
+def scrape_reddit(keyword, max_posts=10):
+    """Scrape Reddit posts using alternative methods"""
+    print(f"Attempting to scrape Reddit for: {keyword}")
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    
+    try:
+        # Method 1: Try official Reddit API
+        url = f"https://www.reddit.com/search.json?q={keyword}&limit={max_posts}"
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()['data']['children']
+        if data:
+            print(f"Found {len(data)} posts via Reddit API")
+            return pd.DataFrame([{
+                'comment': post['data']['title'],
+                'source': 'Reddit',
+                'date': datetime.fromtimestamp(post['data']['created_utc'])
+            } for post in data])
+        
+        # Fallback to HTML scraping if API fails
+        print("Trying HTML fallback...")
+        html_url = f"https://www.reddit.com/search/?q={keyword}"
+        response = requests.get(html_url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        posts = []
+        for post in soup.select('h3')[:max_posts]:  # Common post title selector
+            posts.append({
+                'comment': post.get_text(strip=True),
+                'source': 'Reddit',
+                'date': datetime.now()
+            })
+        
+        print(f"Found {len(posts)} posts via HTML")
+        return pd.DataFrame(posts)
 
-    keyword = st.text_input("Enter a brand (e.g. Secureonix)")
-    num = st.slider("How many posts/reviews?", 5, 50, 10)
+    except Exception as e:
+        print(f"Reddit scraping failed: {str(e)}")
+        return pd.DataFrame()
 
-    if st.button("Scrape the Web"):
-        with st.spinner("Scraping data..."):
-            reddit_df = scrape_reddit(keyword, max_posts=num)
-            trust_df = scrape_trustpilot(keyword, max_reviews=num)
-            
-            dfs = []
-            for df, source in [(reddit_df, "Reddit"), (trust_df, "Trustpilot")]:
-                if not df.empty:
-                    if 'title' in df.columns:
-                        df = df.rename(columns={'title': 'comment'})
-                    if 'comment' in df.columns:
-                        dfs.append(df)
-                    else:
-                        st.warning(f"No comments found in {source} data")
-            
-            if dfs:
-                full_df = pd.concat(dfs, ignore_index=True)
-                st.session_state.scraped_data = full_df
-                st.success(f"Scraped {len(full_df)} comments! Preview:")
-                st.dataframe(full_df)
-            else:
-                st.error("No valid data found from either source")
-                st.session_state.scraped_data = None
-
-    if "scraped_data" in st.session_state and st.session_state.scraped_data is not None:
-        if st.button("Analyze with GPT"):
+def scrape_trustpilot(keyword, max_reviews=10):
+    """Scrape Trustpilot reviews with robust selectors"""
+    print(f"Attempting to scrape Trustpilot for: {keyword}")
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Accept-Language': 'en-US,en;q=0.9'
+    }
+    
+    try:
+        url = f"https://www.trustpilot.com/search?query={keyword}"
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        reviews = []
+        
+        # Updated selectors
+        for card in soup.select('[data-service-review]')[:max_reviews]:
             try:
-                if 'comment' not in st.session_state.scraped_data.columns:
-                    st.error("Data format error: No 'comment' column found")
-                    st.write("Available columns:", st.session_state.scraped_data.columns.tolist())
-                else:
-                    comments = st.session_state.scraped_data['comment'].dropna().head(10)
-                    
-                    if len(comments) == 0:
-                        st.warning("No valid comments found for analysis")
-                    else:
-                        prompt = (
-                            f"Analyze these comments about '{keyword}':\n"
-                            "1. Overall sentiment (Positive/Negative/Neutral)\n"
-                            "2. Key positive aspects\n"
-                            "3. Main complaints\n"
-                            "4. Brand reputation summary\n\n"
-                            "Comments:\n" + 
-                            "\n".join(f"- {c}" for c in comments)
-                        )
-                        
-                        st.markdown("### ✅ Prompt Sent to GPT")
-                        st.code(prompt)
-
-                        with st.spinner("Analyzing..."):
-                            response = run_gpt_prompt(prompt, module="brand_reputation")
-                        
-                        st.markdown("### 🧠 GPT Response")
-                        st.write(response)
-                        
+                text = card.select_one('[data-service-review-text]').get_text(strip=True)
+                date = card.select_one('time').get('datetime', '')
+                reviews.append({
+                    'comment': text,
+                    'source': 'Trustpilot',
+                    'date': pd.to_datetime(date) if date else datetime.now()
+                })
+                time.sleep(random.uniform(0.5, 2))  # Respectful delay
             except Exception as e:
-                st.error(f"Analysis failed: {str(e)}")
-    else:
-        st.info("Please scrape data first to enable analysis")
-
-if __name__ == "__main__":
-    main()
+                print(f"Skipping review due to: {str(e)}")
+                continue
+        
+        print(f"Found {len(reviews)} Trustpilot reviews")
+        return pd.DataFrame(reviews)
+        
+    except Exception as e:
+        print(f"Trustpilot scraping failed: {str(e)}")
+        return pd.DataFrame()
