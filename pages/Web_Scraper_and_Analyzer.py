@@ -14,9 +14,18 @@ def main():
     st.title("🔍 Modern Brand Reputation Analyzer")
     
     # Input Section
-    keyword = st.text_input("Enter a brand name (e.g. Nike, Starbucks)", 
-                          value="Apple",  # Default to Apple for testing
-                          help="Try popular brands first for better results")
+    st.markdown("### Try these brands for testing:")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Apple"):
+            st.session_state.brand = "Apple"
+    with col2:
+        if st.button("Nike"):
+            st.session_state.brand = "Nike"
+    
+    keyword = st.text_input("Enter a brand name", 
+                          value=st.session_state.get('brand', 'Apple'),
+                          help="Works best with Apple, Nike, Starbucks")
     num = st.slider("Number of posts/reviews", 5, 50, 10)
     
     # Scraping Section
@@ -29,15 +38,6 @@ def main():
             try:
                 reddit_df = scrape_reddit(keyword, max_posts=num)
                 trust_df = scrape_trustpilot(keyword, max_reviews=num)
-                
-                # Debug preview
-                with st.expander("Raw Data Preview"):
-                    st.write("Reddit Data Shape:", reddit_df.shape)
-                    st.write("Trustpilot Data Shape:", trust_df.shape)
-                    if not reddit_df.empty:
-                        st.write("Sample Reddit Comments:", reddit_df['comment'].head().tolist())
-                    if not trust_df.empty:
-                        st.write("Sample Trustpilot Comments:", trust_df['comment'].head().tolist())
                 
                 # Process data
                 dfs = []
@@ -52,9 +52,12 @@ def main():
                     full_df = pd.concat(dfs, ignore_index=True)
                     st.session_state.scraped_data = full_df
                     st.success(f"✅ Found {len(full_df)} comments!")
-                    st.dataframe(full_df[['comment', 'source']].head())
                     
-                    # Show success metrics
+                    # Show data preview
+                    with st.expander("View Scraped Data"):
+                        st.dataframe(full_df[['comment', 'source']])
+                        
+                    # Show quick stats
                     col1, col2 = st.columns(2)
                     with col1:
                         st.metric("Total Comments", len(full_df))
@@ -65,12 +68,12 @@ def main():
                     No data found. This could be because:
                     - The brand isn't listed on Trustpilot
                     - No recent Reddit discussions
-                    - Temporary scraping limitations
+                    - Try one of these supported brands: Apple, Nike, Starbucks
                     """)
                     
             except Exception as e:
                 st.error(f"Scraping failed: {str(e)}")
-                st.info("Try again later or with a different brand")
+                st.info("Try again with a supported brand")
 
     # Analysis Section
     if "scraped_data" in st.session_state:
