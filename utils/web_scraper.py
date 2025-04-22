@@ -1,41 +1,70 @@
-
-# utils/web_scraper.py
-import requests
-from bs4 import BeautifulSoup
+import streamlit as st
 import pandas as pd
-import re
+from utils.web_scraper import scrape_reddit, scrape_trustpilot, scrape_google_reviews
+from utils.gpt_helpers import run_gpt_prompt
 
-def scrape_reddit(keyword: str, max_posts: int = 20):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    search_url = f"https://www.reddit.com/search/?q={keyword}&sort=new"
-    response = requests.get(search_url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-    results = []
+st.title("🌐 Web Scraper + Brand Analyzer")
+st.markdown("Scrape Reddit, Trustpilot, and Google reviews for brand sentiment.")
 
-    for post in soup.select('a[data-click-id="body"]')[:max_posts]:
-        text = post.get_text(strip=True)
-        if text:
-            results.append({"platform": "Reddit", "comment": text})
+keyword = st.text_input("Enter a brand name or keyword (e.g., Secureonix)")
+num_posts = st.slider("Number of reviews/posts per platform", 5, 50, 20)
 
-    return pd.DataFrame(results)
+# Session memory
+if "scraped_data" not in st.session_state:
+    st.session_state.scraped_data = None
 
+if "gpt_chain" not in st.session_state:
+    st.session_state.gpt_chain = []
 
-def scrape_trustpilot(keyword: str, max_reviews: int = 20):
-    base_url = f"https://www.trustpilot.com/search?query={keyword}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(base_url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-    results = []
+if st.button("Scrape & Analyze"):
+    with st.spinner("Scraping data..."):
+        reddit_df = scrape_reddit(keyword, num_posts)
+        trustpilot_df = scrape_trustpilot(keyword, num_posts)
+        google_df = scrape_google_reviews(keyword, num_posts)
 
-    for review in soup.find_all("p", class_=re.compile(".*review-content__text.*"))[:max_reviews]:
-        text = review.get_text(strip=True)
-        if text:
-            results.append({"platform": "Trustpilot", "comment": text})
+        full_df = pd.concat([reddit_df, trustpilot_df, google_df], ignore_index=True)
+        st.session_state.scraped_data = full_df
 
-    return pd.DataFrame(results)
+    st.success("Scraping complete. Preview below:")
+    st.dataframe(full_df)
 
+    csv = full_df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download CSV", csv, f"{keyword}_scraped_data.csv")
 
-def scrape_google_reviews(keyword: str, max_reviews: int = 20):
-    # Placeholder: Google reviews typically require APIs or headless browser automation.
-    # Returning dummy placeholder.
-    return pd.DataFrame([{"platform": "Google", "comment": f"Sample Google review for {keyword}."} for _ in range(max_reviews)])
+# GPT prompt & response
+if st.session_state.scraped_data is not None:
+    st.markdown("### 🧠 GPT Brand Reputation Analysis")
+
+    if st.button("Run Initial GPT Analysis"):
+        prompt = f"Based on the following real user comments about '{keyword}', analyze the brand sentiment, reputation drivers, and emotional tone:\n\n"
+        for row in st.session_state.scraped_data['comment'].head(10):
+            prompt += f"- {row}\n"
+
+        st.markdown("### 📤 Prompt Sent to GPT")
+        st.code(prompt)
+
+        gpt_response = run_gpt_prompt(prompt, module="brand_reputation")
+        st.session_state.gpt_chain.append({"user": prompt, "assistant": gpt_response})
+
+        st.markdown("### 🤖 GPT Response")
+        st.write(gpt_response)
+
+    # Show full GPT chat history
+    for i, turn in enumerate(st.session_state.gpt_chain):
+        st.markdown(f"**🧠 GPT Analysis #{i+1}:**")
+        st.markdown(turn["assistant"])
+
+    # Follow-up prompt
+    follow_up = st.text_area("Ask a follow-up question based on GPT insights:")
+    if st.button("Send Follow-up to GPT") and follow_up.strip():
+        conversation = [{"role": "system", "content": "You are a brand strategy and sentiment expert."}]
+        for turn in st.session_state.gpt_chain:
+            conversation.append({"role": "user", "content": turn["user"]})
+            conversation.append({"role": "assistant", "content": turn["assistant"]})
+        conversation.append({"role": "user", "content": follow_up})
+
+        followup_response = run_gpt_prompt(follow_up, module="brand_reputation")
+        st.session_state.gpt_chain.append({"user": follow_up, "assistant": followup_response})
+
+        st.markdown("### 🧠 GPT Follow-Up Response")
+        st.write(followup_response)
