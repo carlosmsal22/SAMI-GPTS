@@ -1,68 +1,99 @@
 import streamlit as st
-from utils.gpt_scraper import EnterpriseScraper
 import pandas as pd
 import plotly.express as px
+import json  # Critical missing import
+from datetime import datetime
+from utils.gpt_scraper import EnterpriseScraper
 
 def display_radar_chart(analysis: dict):
-    """Interactive radar visualization"""
-    df = pd.DataFrame({
-        'Metric': ['Reputation', 'Sentiment', 'Engagement', 'Crisis', 'Growth'],
-        'Score': [
-            analysis['overall_score'],
-            analysis['by_source']['average'],
-            len(analysis['strengths']),
-            10 - len(analysis['crisis_alerts']),
-            analysis['by_source'].get('news', 5)
-        ]
-    })
-    fig = px.line_polar(df, r='Score', theta='Metric', line_close=True)
+    """Visualize multi-dimensional scores"""
+    if not analysis:
+        return
+        
+    metrics = {
+        'Reputation': analysis.get('overall_score', 0),
+        'Sentiment': analysis.get('sentiment_score', 0),
+        'Engagement': len(analysis.get('top_strengths', [])),
+        'Stability': 10 - len(analysis.get('crisis_alerts', [])),
+        'Growth': analysis.get('growth_potential', 0)
+    }
+    
+    fig = px.line_polar(
+        pd.DataFrame({
+            'Metric': list(metrics.keys()),
+            'Score': list(metrics.values())
+        }), 
+        r='Score', 
+        theta='Metric',
+        line_close=True,
+        range_r=[0,10]
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 def main():
-    st.set_page_config(layout="wide")
+    st.set_page_config(layout="wide", page_title="EnterpriseIQ")
     st.title("🚀 Enterprise Intelligence Dashboard")
     
     # Configuration
-    col1, col2 = st.columns(2)
-    with col1:
-        company = st.text_input("Company Name", "Secureonix")
-    with col2:
-        depth = st.select_slider("Analysis Depth", ["Basic", "Standard", "Deep"])
+    company = st.text_input("Company Name", "Apple")
+    analysis_depth = st.radio(
+        "Analysis Depth",
+        ["Basic", "Standard", "Deep"],
+        horizontal=True,
+        index=1
+    )
     
-    # Initialize scraper
-    scraper = EnterpriseScraper()
-    
-    if st.button("🔍 Run Comprehensive Scan"):
-        with st.spinner(f"Scanning {company} across 50+ sources..."):
+    if st.button("🔍 Run Comprehensive Scan", type="primary"):
+        with st.spinner(f"Scanning {company} (this may take 2-3 minutes)..."):
             try:
+                # Initialize and run scraper
+                scraper = EnterpriseScraper()
+                
                 # Data collection
                 data = scraper.scrape_enterprise_data(company)
-                analysis = scraper.analyze_sentiment(data)
+                if not data:
+                    st.error("No valid data found. Try adjusting search terms.")
+                    return
                 
-                # Session state
-                st.session_state.data = pd.DataFrame(data)
+                # Convert to DataFrame for display
+                df = pd.DataFrame(data)
+                
+                # Analysis
+                analysis = scraper.analyze_sentiment(data)
+                if 'error' in analysis:
+                    st.error(f"Analysis failed: {analysis['error']}")
+                    return
+                
+                # Store results
+                st.session_state.data = df
                 st.session_state.analysis = analysis
                 
-                # Display
-                st.success(f"Found {len(data)} quality mentions")
+                # Display success
+                st.success(f"✅ Collected {len(df)} mentions from {df['source'].nunique()} sources")
                 
-                with st.expander("📊 Data Overview"):
-                    display_radar_chart(analysis)
-                    
-                with st.expander("🔍 Top Findings"):
-                    st.json(analysis, expanded=False)
+                # Show analysis
+                display_radar_chart(analysis)
+                
+                # Data explorer
+                with st.expander("📊 View Raw Data"):
+                    st.dataframe(df[['content', 'source', 'date']])
+                
+                # Export options
+                with st.expander("💾 Export Results"):
+                    st.download_button(
+                        "Download as JSON",
+                        data=json.dumps({
+                            "company": company,
+                            "data": data,
+                            "analysis": analysis
+                        }, indent=2),
+                        file_name=f"{company}_analysis.json"
+                    )
                     
             except Exception as e:
                 st.error(f"Scan failed: {str(e)}")
-
-    # Historical comparison
-    if 'analysis' in st.session_state:
-        st.divider()
-        st.subheader("📈 Trend Analysis")
-        
-        if st.button("🔄 Compare with Previous Scan"):
-            # Implement comparison logic
-            st.warning("Historical comparison coming in v2.0")
+                if st.button("Show Technical Details"):
+                    st.exception(e)
 
 if __name__ == "__main__":
     main()
