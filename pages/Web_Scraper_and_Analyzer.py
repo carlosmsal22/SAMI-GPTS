@@ -2,66 +2,32 @@
 # pages/Web_Scraper_and_Analyzer.py
 import streamlit as st
 import pandas as pd
-from utils.web_scraper import scrape_reddit, scrape_trustpilot, scrape_google_reviews
+from utils.web_scraper import scrape_reddit, scrape_trustpilot
 from utils.gpt_helpers import run_gpt_prompt
 
-st.title("🌐 Web Scraper + Brand Analyzer")
-st.markdown("Scrape Reddit, Trustpilot, and Google reviews for brand sentiment.")
+st.title("🧠 Scrape + Analyze Brand Reputation")
 
-keyword = st.text_input("Enter a brand name or keyword (e.g., Secureonix)")
-num_posts = st.slider("Number of reviews/posts per platform", 5, 50, 20)
+keyword = st.text_input("Enter a brand (e.g. Secureonix)")
+num = st.slider("How many posts/reviews?", 5, 50, 10)
 
-# Initialize session state for memory
-if "scraped_data" not in st.session_state:
-    st.session_state.scraped_data = None
-
-if "gpt_chain" not in st.session_state:
-    st.session_state.gpt_chain = []
-
-if st.button("Scrape & Analyze"):
-    st.info(f"Scraping platforms for: {keyword}")
-
-    with st.spinner("Scraping Reddit..."):
-        reddit_df = scrape_reddit(keyword, num_posts)
-    with st.spinner("Scraping Trustpilot..."):
-        trustpilot_df = scrape_trustpilot(keyword, num_posts)
-    with st.spinner("Scraping Google Reviews..."):
-        google_df = scrape_google_reviews(keyword, num_posts)
-
-    full_df = pd.concat([reddit_df, trustpilot_df, google_df], ignore_index=True)
+if st.button("Scrape the Web"):
+    reddit_df = scrape_reddit(keyword, max_posts=num)
+    trust_df = scrape_trustpilot(keyword, max_reviews=num)
+    full_df = pd.concat([reddit_df, trust_df])
     st.session_state.scraped_data = full_df
-
-    st.success("Scraping complete. Preview below:")
+    st.success("Scraping complete! Here's a preview:")
     st.dataframe(full_df)
 
-    csv = full_df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download CSV", csv, f"{keyword}_reviews.csv", mime="text/csv")
+if "scraped_data" in st.session_state and st.button("Analyze with GPT"):
+    prompt = f"Based on the following user comments about '{keyword}', summarize sentiment and brand reputation:
 
-if st.session_state.scraped_data is not None:
-    st.markdown("### 🧠 GPT Brand Reputation Analysis")
+"
+    for comment in st.session_state.scraped_data['comment'].head(10):
+        prompt += f"- {comment}\n"
 
-    if st.button("Run Initial GPT Analysis"):
-        prompt = f"Based on the following user feedback about '{keyword}', provide a sentiment summary, emotion breakdown, and brand reputation insights:\n\n"
-        for row in st.session_state.scraped_data['comment'].head(10):
-            prompt += f"- {row}\n"
+    st.markdown("### ✅ Prompt Sent to GPT")
+    st.code(prompt)
 
-        gpt_response = run_gpt_prompt(prompt)
-        st.session_state.gpt_chain.append({"user": prompt, "assistant": gpt_response})
-
-    for i, turn in enumerate(st.session_state.gpt_chain):
-        st.markdown(f"**🧠 GPT Analysis #{i+1}:**")
-        st.markdown(turn["assistant"])
-
-    follow_up = st.text_area("Ask a follow-up question based on the above analysis:")
-    if st.button("Send Follow-up to GPT") and follow_up.strip() != "":
-        conversation = [{"role": "system", "content": "You are a brand strategy and sentiment expert."}]
-        for turn in st.session_state.gpt_chain:
-            conversation.append({"role": "user", "content": turn["user"]})
-            conversation.append({"role": "assistant", "content": turn["assistant"]})
-        conversation.append({"role": "user", "content": follow_up})
-
-        try:
-            response = run_gpt_prompt(follow_up)
-            st.session_state.gpt_chain.append({"user": follow_up, "assistant": response})
-        except Exception as e:
-            st.error(f"GPT Error: {e}")
+    response = run_gpt_prompt(prompt, module="brand_reputation")
+    st.markdown("### 🧠 GPT Response")
+    st.write(response)
