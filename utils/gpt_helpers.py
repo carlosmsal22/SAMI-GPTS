@@ -1,32 +1,22 @@
 
-import os
+# utils/gpt_helpers.py
 import openai
-import streamlit as st
 
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Make sure to set your OpenAI API key in the environment or use Streamlit secrets
+import os
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-def run_gpt(prompt_config, user_input):
-    # Setup system instruction
-    messages = [{"role": "system", "content": prompt_config.get("instructions", "")}]
-
-    # Add memory from prior interaction if available
-    history = st.session_state.get("gpt_memory", [])
-    messages.extend(history)
-
-    # Append user input
-    messages.append({"role": "user", "content": user_input})
-
-    # Run GPT call
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=messages,
-        temperature=0.7
-    )
-
-    result = response.choices[0].message.content
-
-    # Save message history for chaining
-    messages.append({"role": "assistant", "content": result})
-    st.session_state["gpt_memory"] = messages[-6:]  # limit memory to last 3 exchanges
-
-    return result
+def run_gpt_prompt(prompt: str, model="gpt-4", temperature=0.7, max_tokens=750):
+    try:
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a helpful market research assistant specializing in brand reputation analysis."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        return response.choices[0].message["content"].strip()
+    except Exception as e:
+        return f"❌ GPT Error: {e}"
