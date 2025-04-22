@@ -3,7 +3,7 @@
 
 This Streamlit-based application is designed to host modular GPT-powered tools for market research, including:
 
-- SAMI.AI INSIGHTS LATAM
+- SAMI Brand Reputation
 - SAMI VoC AI
 - SAMI Pricing AI
 - SAMI Segmentation AI
