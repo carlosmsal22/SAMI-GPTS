@@ -1,5 +1,3 @@
-
-# pages/Web_Scraper_and_Analyzer.py
 import streamlit as st
 import pandas as pd
 from utils.web_scraper import scrape_reddit, scrape_trustpilot
