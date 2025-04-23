@@ -4,6 +4,7 @@ import plotly.express as px
 import json
 from datetime import datetime
 from utils.gpt_scraper import EnterpriseScraper
+from utils.gpt_helpers import run_gpt_prompt
 
 def show_debug_info(data):
     with st.expander("🛠️ Debug Information"):
