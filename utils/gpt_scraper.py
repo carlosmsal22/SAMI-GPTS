@@ -7,6 +7,12 @@ from datetime import datetime
 from typing import List, Dict
 import random
 
+# ✅ Import the scrapers from web_scraper_helpers
+from utils.web_scraper_helpers import (
+    scrape_google_news_rss,
+    scrape_reddit_cybersecurity
+)
+
 class EnterpriseScraper:
     def __init__(self):
         self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -23,29 +29,48 @@ class EnterpriseScraper:
         }
 
     def _scrape_google_news(self, company: str) -> List[Dict]:
-        """Fallback news scraper"""
+        """Uses Google News RSS as fallback"""
         try:
-            url = f"https://news.google.com/rss/search?q={company}"
-            response = requests.get(url, timeout=10)
-            soup = BeautifulSoup(response.text, 'xml')
+            entries = scrape_google_news_rss(company)
             return [{
-                "content": item.title.text,
+                "content": item['title'],
                 "source": "Google News",
-                "date": item.pubDate.text,
-                "sentiment": random.randint(5, 9)  # Mock sentiment
-            } for item in soup.find_all('item')[:3]]
-        except:
+                "date": item['date'],
+                "sentiment": random.randint(5, 9),
+                "url": item['url']
+            } for item in entries]
+        except Exception as e:
+            print(f"Google News scrape failed: {e}")
+            return []
+
+    def _scrape_reddit(self, company: str) -> List[Dict]:
+        """Uses Google-powered Reddit scraping as fallback"""
+        try:
+            entries = scrape_reddit_cybersecurity(company)
+            return [{
+                "content": item['comment'],
+                "source": "Reddit",
+                "date": item['date'],
+                "sentiment": random.randint(4, 8),
+                "url": item['url']
+            } for item in entries]
+        except Exception as e:
+            print(f"Reddit scrape failed: {e}")
             return []
 
     def scrape_enterprise_data(self, company: str) -> List[Dict]:
-        """Hybrid scraper with multiple fallbacks"""
-        # Try GPT-powered scraping first
+        """Main enterprise scraper with multi-layered fallback"""
+
+        # Attempt GPT-based scraping
         try:
             response = self.client.chat.completions.create(
                 model="gpt-4-turbo",
                 messages=[{
                     "role": "user",
-                    "content": f"Scrape recent mentions of {company} from news and social media. Return as JSON with content, source, date and sentiment."
+                    "content": f"""
+                    Scrape recent mentions of {company} from news and social media.
+                    Return as JSON with keys: content, source, date, sentiment (1-10), and url if available.
+                    """
                 }],
                 response_format={"type": "json_object"},
                 temperature=0.3
@@ -60,16 +85,21 @@ class EnterpriseScraper:
         if company in self.fallback_data:
             return self.fallback_data[company]
 
-        # Fallback 2: Google News RSS
+        # Fallback 2: Google News
         news_results = self._scrape_google_news(company)
         if news_results:
             return news_results
 
-        # Final fallback: Empty list
+        # Fallback 3: Reddit
+        reddit_results = self._scrape_reddit(company)
+        if reddit_results:
+            return reddit_results
+
+        # Final fallback: Nothing found
         return []
 
     def analyze_sentiment(self, data: List[Dict]) -> Dict:
-        """Enhanced sentiment analysis with validation"""
+        """Run sentiment analysis using GPT"""
         if not data:
             return {"error": "No data to analyze"}
 
@@ -81,9 +111,9 @@ class EnterpriseScraper:
                     "content": f"""
                     Analyze this enterprise data:
                     {json.dumps(data)}
-                    
+
                     Return JSON with:
-                    - overall_score (1-10)
+                    - overall_score (1–10)
                     - sentiment_breakdown: {{positive: %, negative: %, neutral: %}}
                     - top_strengths (list)
                     - top_weaknesses (list)
