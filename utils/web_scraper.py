@@ -1,31 +1,48 @@
 from typing import List, Dict
+from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
-from datetime import datetime
+import feedparser
+import urllib.parse
 
-def hybrid_scrape(company: str) -> List[Dict]:
-    """Enhanced scraper for SAMI compatibility"""
-    sources = {
-        'Trustpilot': lambda: scrape_trustpilot(company),
-        'Reddit': lambda: scrape_reddit_cybersecurity(company),
-        'News': lambda: scrape_google_news_rss(company)
+
+def scrape_reddit_cybersecurity(company: str) -> List[Dict]:
+    """Scrapes Reddit links via Google search"""
+    query = f"site:reddit.com {company} cybersecurity"
+    url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0"
     }
-    
+
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, "html.parser")
+
     results = []
-    for name, scraper in sources.items():
-        try:
-            data = scraper()
-            results.extend([{
-                "content": d.get('comment', d.get('title', '')),
-                "source": name,
-                "date": d.get('date', datetime.now().strftime('%Y-%m-%d')),
-                "url": d.get('url', '')
-            } for d in data])
-        except Exception as e:
-            print(f"{name} scrape failed: {e}")
-    
-    return [
-        d for d in results 
-        if len(d['content']) > 30  # SAMI quality threshold
-    ][:50]  # Limit to top 50 mentions
+    for g in soup.select("div.g"):
+        title_el = g.select_one("h3")
+        link_el = g.select_one("a")
+        if title_el and link_el:
+            results.append({
+                "comment": title_el.text.strip(),
+                "url": link_el['href'],
+                "date": datetime.now().strftime("%Y-%m-%d")
+            })
+
+    return results
+
+
+def scrape_google_news_rss(company: str) -> List[Dict]:
+    """Scrapes Google News RSS feed for company mentions"""
+    rss_url = f"https://news.google.com/rss/search?q={company}"
+    feed = feedparser.parse(rss_url)
+
+    results = []
+    for entry in feed.entries[:10]:
+        results.append({
+            "title": entry.title,
+            "url": entry.link,
+            "date": entry.published if 'published' in entry else datetime.now().strftime("%Y-%m-%d")
+        })
+
+    return results
