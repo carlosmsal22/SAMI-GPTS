@@ -11,7 +11,7 @@ sys.path.append(str(current_dir))
 # Import utilities
 try:
     from utils.gpt_helpers import run_gpt_prompt
-    from utils.web_scraper import scrape_reddit, scrape_trustpilot
+    from utils.gpt_scraper import EnterpriseScraper
 except ImportError as e:
     st.error(f"Import Error: {str(e)}")
     st.error(f"Current directory: {os.getcwd()}")
