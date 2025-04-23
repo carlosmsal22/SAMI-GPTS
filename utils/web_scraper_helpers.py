@@ -1,3 +1,5 @@
+# utils/web_scraper_helpers.py
+
 from typing import List, Dict
 from datetime import datetime
 import requests
@@ -7,9 +9,11 @@ import urllib.parse
 
 
 def scrape_reddit_cybersecurity(company: str) -> List[Dict]:
+    """Scrapes Reddit posts via Google search results"""
     query = f"site:reddit.com {company} cybersecurity"
     url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
     headers = {"User-Agent": "Mozilla/5.0"}
+    
     response = requests.get(url, headers=headers)
     soup = BeautifulSoup(response.text, "html.parser")
 
@@ -28,6 +32,7 @@ def scrape_reddit_cybersecurity(company: str) -> List[Dict]:
 
 
 def scrape_google_news_rss(company: str) -> List[Dict]:
+    """Scrapes Google News RSS feed for company mentions"""
     rss_url = f"https://news.google.com/rss/search?q={company}"
     feed = feedparser.parse(rss_url)
 
