@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from utils.web_scraper import scrape_reddit, scrape_trustpilot
+from utils.web_scraper_helpers import scrape_reddit_cybersecurity as scrape_reddit
 from utils.gpt_helpers import run_gpt_prompt
 import sys
 from pathlib import Path
