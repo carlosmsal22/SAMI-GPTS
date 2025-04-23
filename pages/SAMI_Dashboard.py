@@ -1,6 +1,6 @@
 import streamlit as st
 from utils.sami_integration import SAMIAnalyzer
-from utils.web_scraper import hybrid_scrape  # From previous implementation
+from utils.Web_Scraper import hybrid_scrape  # From previous implementation
 import json
 
 def display_sami_report(report: Dict):
