@@ -2,8 +2,7 @@
 import streamlit as st
 import pandas as pd
 import json
-from utils.gpt_helpers import run_gpt
-from utils.visualizers import plot_bar_chart
+from utils.gpt_helpers import run_gpt_prompt
 from utils.stats_helpers import summarize_dataframe
 from utils.export_helpers import export_csv, export_pdf
 
